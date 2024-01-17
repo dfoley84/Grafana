@@ -1,0 +1,37 @@
+---
+- hosts: localhost
+  vars:
+    dashboards:
+      - { name: "ALB", folder: "CloudWatch" }
+      - { name: "CAdvisor", folder: "Docker" }
+      - { name: "DockerOS", folder: "Docker" }
+      - { name: "ECS", folder: "Docker" }
+      - { name: "ELB", folder: "CloudWatch" }
+      - { name: "Lambda", folder: "Lambda" }
+      - { name: "NodeExporter", folder: "Linux" }
+      - { name: "RDS", folder: "CloudWatch" }
+      - { name: "SFTP", folder: "CloudWatch" }
+
+    alerting:
+      - { name: "docker", type: "Prometheus", region: "eu-west-1", env: "{{ENV}}", JobName: "Ireland", Folder: "Docker"}
+      - { name: "sqsalert", type: "Cloudwatch", region: "eu-west-1", env: "{{ENV}}", JobName: "Ireland", Folder: "SQS"}
+      - { name: "sqsalert", type: "Cloudwatch", region: "eu-central-1", env: "{{ENV}}", JobName: "Frankfurt", Folder: "SQS" }
+
+
+
+  tasks:
+  - include_tasks: CreateFolders.yml
+  - include_tasks: Contactpoints.yml
+  - include_tasks: NotificationPolicies.yml
+  - include_tasks: DataSource.yml
+  
+  - include_tasks: Dashboards.yml
+    loop: "{{ dashboards }}"
+    loop_control:
+      loop_var: dashboard
+
+  
+  - include_tasks: CreateAlerts.yml
+    loop: "{{ alerting }}"
+    loop_control:
+      loop_var: alert

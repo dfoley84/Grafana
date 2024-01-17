@@ -1,0 +1,42 @@
+---
+- name: Add CloudWatch Datasource
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/datasources"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ APIToken }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body: "{{ item.body }}"
+    status_code: 200
+  loop:
+    - name: "Cloudwatch"
+      type: "cloudwatch"
+      body:
+        name: "Cloudwatch"
+        type: "cloudwatch"
+        url: "https://cloudwatch.{{ Region }}.amazonaws.com"
+        access: "proxy"
+        jsonData:
+          authType: "arn"
+          assumedRoleArn: "{{ AssumeRoleARN }}"
+          defaultRegion: "{{ Region }}"
+
+    - name: "Prometheus"
+      type: "prometheus"
+      body:
+        name: "Prometheus"
+        type: "prometheus"
+        url: "https://aps-workspaces.{{ Region }}.amazonaws.com/workspaces/{{ PrometheusWorkSpace }}"
+        access: "proxy"
+        jsonData:
+          sigV4Auth: true
+          sigV4AuthType: "workspaces"
+          assumeRoleArn: "{{ AssumeRoleARN }}"
+          sigV4Region: "{{ Region }}"
+  register: response
+
+- name: Result
+  debug:
+    var: response

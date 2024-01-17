@@ -1,0 +1,25 @@
+---
+- name: Create folder in Grafana via API
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/folders"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ APIToken }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body:
+      title: "{{ item }}"
+    status_code: 200
+  loop:
+    - "Docker"
+    - "Lambda"
+    - "Linux"
+    - "Prowler"
+    - "Cloudwatch"
+    - "ECS"
+    - "SQS"
+
+
+
+

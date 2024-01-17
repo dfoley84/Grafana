@@ -1,0 +1,28 @@
+---
+- name: Configure Notification Alert Policies for Contact Points
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/v1/provisioning/policies"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ APIToken }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body:
+      group_by:
+        - "..."
+      receiver: "grafana-default-sns"
+      repeat_interval: "1d"
+      routes:
+        - object_matchers:
+            - ["alert", "=", "sqs"]
+          receiver: "SQS"
+        - object_matchers:
+            - ["alert", "=", "ecs"]
+          receiver: "ECS"
+        - object_matchers:
+            - ["alert", "=", "sftp"]
+          receiver: "SFTP"
+    status_code:
+      - 200
+      - 202

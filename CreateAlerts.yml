@@ -1,0 +1,87 @@
+---
+- set_fact:
+    region: "{{ alert.region }}"
+    env: "{{ alert.env }}"
+    JobName: "{{ alert.JobName }}"
+
+- name: Generate a random UUID
+  set_fact:
+    random_id: "{{ 89 | random + 10 }}"
+    random_uuid: "{{ 9999999999 | random | to_uuid }}"
+
+- name: Get Grafana Folder UUID
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/search?query={{ alert.Folder }}"
+    method: GET
+    headers:
+      Accept: "application/json"
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ APITOKEN }}"
+    return_content: yes
+    status_code:
+      - 200
+      - 201
+  register: folder_response
+
+- name: debug
+  debug:
+    var: folder_response
+
+- name: Get Folder UID
+  set_fact:
+    folder_uid: "{{ folder_response.json[0].uid }}"
+
+
+
+- name: Get Grafana Datasource UUID
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/datasources/name/{{ alert.type }}"
+    method: GET
+    headers:
+      Accept: "application/json"
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ APITOKEN }}"
+    return_content: yes
+    status_code:
+      - 200
+      - 201
+  register: api_response
+
+- name: Get UUID
+  set_fact:
+    uid: "{{ api_response.json.uid }}"
+
+- name: Render jinja Template
+  template:
+    src: Alerts/{{ alert.name }}.json.j2
+    dest: Alerts/{{ alert.name }}.json
+
+- name: Read JSON
+  ansible.builtin.slurp:
+    src: "Alerts/{{ alert.name }}.json"
+  register: dashboard_content
+
+- name: Parse dashboard JSON content
+  set_fact:
+    dashboard_json: "{{ dashboard_content['content'] | b64decode | from_json }}"
+
+- name: Create Alert 
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/v1/provisioning/alert-rules"
+    method: POST
+    headers:
+      Accept: "application/json"
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ APITOKEN }}"
+    body: "{{ dashboard_json }}"
+    body_format: json
+    return_content: yes
+    status_code:
+      - 200
+      - 201
+  register: api_response
+
+- name: Debug
+  debug:
+    var: api_response
+

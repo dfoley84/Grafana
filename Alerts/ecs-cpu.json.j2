@@ -1,0 +1,141 @@
+{
+    "annotations": {
+        "summary": "ECS Service CPU Utilization"
+    },
+    "condition": "C",
+    "data": [
+        {
+            "datasourceUid": "{{ uid }}",
+            "model": {
+                "dimensions": {
+                    "ClusterName": "<<>>",
+                    "ServiceName": "*"
+                },
+                "expression": "",
+                "id": "",
+                "intervalMs": 1000,
+                "label": "",
+                "logGroups": [],
+                "matchExact": true,
+                "maxDataPoints": 43200,
+                "metricEditorMode": 0,
+                "metricName": "CPUUtilization",
+                "metricQueryType": 0,
+                "namespace": "AWS/ECS",
+                "period": "",
+                "queryMode": "Metrics",
+                "refId": "A",
+                "region": "{{ region }}",
+                "sqlExpression": "",
+                "statistic": "Average"
+            },
+            "queryType": "",
+            "refId": "A",
+            "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+            }
+        },
+        {
+            "datasourceUid": "__expr__",
+            "model": {
+                "conditions": [
+                    {
+                        "evaluator": {
+                            "params": [],
+                            "type": "gt"
+                        },
+                        "operator": {
+                            "type": "and"
+                        },
+                        "query": {
+                            "params": [
+                                "B"
+                            ]
+                        },
+                        "reducer": {
+                            "params": [],
+                            "type": "last"
+                        },
+                        "type": "query"
+                    }
+                ],
+                "datasource": {
+                    "type": "__expr__",
+                    "uid": "__expr__"
+                },
+                "expression": "A",
+                "intervalMs": 1000,
+                "maxDataPoints": 43200,
+                "reducer": "last",
+                "refId": "B",
+                "type": "reduce"
+            },
+            "queryType": "",
+            "refId": "B",
+            "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+            }
+        },
+        {
+            "datasourceUid": "__expr__",
+            "model": {
+                "conditions": [
+                    {
+                        "evaluator": {
+                            "params": [
+                                400
+                            ],
+                            "type": "gt"
+                        },
+                        "operator": {
+                            "type": "and"
+                        },
+                        "query": {
+                            "params": [
+                                "C"
+                            ]
+                        },
+                        "reducer": {
+                            "params": [],
+                            "type": "last"
+                        },
+                        "type": "query"
+                    }
+                ],
+                "datasource": {
+                    "type": "__expr__",
+                    "uid": "__expr__"
+                },
+                "expression": "B",
+                "intervalMs": 1000,
+                "maxDataPoints": 43200,
+                "refId": "C",
+                "type": "threshold"
+            },
+            "queryType": "",
+            "refId": "C",
+            "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+            }
+        }
+    ],
+    "execErrState": "Error",
+    "folderUID": "{{ folder_uid }}",
+    "for": "15m",
+    "id": {{ random_id }},
+    "isPaused": false,
+    "labels": {
+        "alert": "ecs",
+        "env": "production",
+        "region": "{{ region }}"
+    },
+    "noDataState": "NoData",
+    "orgID": 1,
+    "ruleGroup": "ECS-CPU",
+    "title": "Production:{{ region }}",
+    "uid": "{{ random_uuid }}",
+    "updated": "2023-10-23T09:42:14Z"
+}

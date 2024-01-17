@@ -1,0 +1,42 @@
+---
+- name: Create Contact points in Grafana via API
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/v1/provisioning/contact-points"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ APITOKEN }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body: "{{ item.body }}"
+    status_code:
+      - 200
+      - 202
+  loop:
+    - name: SQS
+      type: slack
+      body:
+        name: SQS
+        type: slack
+        isDefault: false
+        settings:
+          url: https://hooks.slack.com/services/
+          channel: "#"
+    - name: ECS
+      type: slack
+      body:
+        name: ECS
+        type: slack
+        isDefault: false 
+        settings:
+          url: https://hooks.slack.com/services/
+          channel: "#"
+    - name: SFTP
+      type: slack
+      body:
+        name: SFTP
+        type: slack
+        isDefault: false 
+        settings:
+          url: https://hooks.slack.com/services/
+          channel: "#"

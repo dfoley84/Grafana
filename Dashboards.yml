@@ -1,0 +1,32 @@
+---
+- name: Read dashboard JSON content for {{ dashboard.name }}
+  ansible.builtin.slurp:
+    src: "Dashboards/{{ dashboard.name }}.json"
+  register: dashboard_content
+
+- name: Parse dashboard JSON content for {{ dashboard.name }}
+  set_fact:
+    dashboard_json: "{{ dashboard_content['content'] | b64decode | from_json }}"
+
+- name: Search for Folder ID based on Folder Name in Grafana for {{ dashboard.folder }}
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/search?query={{ dashboard.folder }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ APITOKEN }}"
+      Accept: "application/json"
+  register: folder_search_results
+
+- name: Create Dashboard in Grafana for {{ dashboard.name }}
+  uri:
+    url: "https://grafana-{{ENV}}.{{domain}}.com/api/dashboards/db"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ APITOKEN }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body: 
+      dashboard: "{{ dashboard_json }}"
+      folderuid: "{{ folder_search_results.json[0].uid }}"
+      overwrite: true

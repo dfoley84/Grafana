@@ -1,0 +1,260 @@
+AWSTemplateFormatVersion: 2010-09-09
+Conditions:
+  IfRestrictAccess: !Not 
+    - !Equals 
+      - ''
+      - !Join 
+        - ''
+        - !Ref RestrictAccess
+  IfDevChannel: !Equals 
+    - !Ref Channel
+    - dev
+Parameters:
+  Name:
+    Description: Name of the Stack (Customer)-Superset
+    Type: String
+  DBHOST:
+    Description: Database Host
+    Type: String
+  TENANT:
+    Description: Auth0 URL without https:// or /oauth/token at the end
+    Type: String
+  HostName:
+    Type: String
+  DBNAME:
+    Description: Database Name
+    Type: String
+  DBSecret:
+    Description: Database Secret ARN
+    Type: String
+  Auth0Secret:
+    Description: Auth0 Secret ARN
+    Type: String
+  GrafanaServiceImage:
+    Description: ECR Image for Grafana Service
+    Type: String
+  DesiredCount:
+    Description: How Many Instances of this task should run across the cluster
+    Type: Number
+    Default: 1
+
+  RestrictAccess:
+    Description: Comma delimited list of CIDR ranges. Max 4 items
+    Type: CommaDelimitedList
+    Default: ''
+  MaxRequestDuration:
+    Type: Number
+    Default: 20
+  MaxFileSize:
+    Type: Number
+    Default: 80
+  ENV:
+    Type: String
+  Channel:
+    Type: String
+    AllowedValues:
+  MaxRequestDuration:
+    Description: Maximum time in seconds that a request can take before it is terminated
+    Type: Number
+    Default: 30
+  ECSStackName:
+    Type: String
+  Memory:
+    Type: Number
+    Default: 258
+  Cpu:
+    Type: Number
+    Default: 2
+Mappings:
+  ChannelMap:
+    sandbox:
+      ListenerPriority: 
+    uat:
+      ListenerPriority: 
+    prod:
+      ListenerPriority: 
+  EnvMap:
+    '111':
+      Name: dev
+    '11':
+      Name: test
+    '111':
+      Name: prod
+Resources:
+  GrafanaTaskRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${Name}-${Channel}-GrafanaTaskRole'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/AmazonPrometheusFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonPrometheusRemoteWriteAccess'
+      Policies:
+        - PolicyName: GrafanaTaskPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'elasticfilesystem:*'
+                  - 'logs:*'
+                  - 'secretsmanager:GetSecretValue'
+                  - 'secretsmanager:DescribeSecret'
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                  - 'cloudwatch:*'
+                Resource: '*'
+  GrafanaTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: !Sub '${Name}-${Channel}'
+      TaskRoleArn: !Ref GrafanaTaskRole
+      ExecutionRoleArn: !Ref GrafanaTaskRole
+      ContainerDefinitions:
+        - Name: app
+          Essential: true
+          Image: !Ref GrafanaServiceImage
+          Cpu: !Ref Cpu
+          Memory: !Ref Memory
+          PortMappings:
+            - ContainerPort: 3000
+          Secrets:
+            - Name: DBUSER
+              ValueFrom: !Sub '${DBSecret}:DBUSER::'
+            - Name: DBPASSWORD
+              ValueFrom: !Sub '${DBSecret}:DBPASSWORD::'
+            - Name: CLIENTID
+              ValueFrom: !Sub '${Auth0Secret}:AUTH_CLIENT::'
+            - Name: CLIENTSECRET
+              ValueFrom: !Sub '${Auth0Secret}:AUTH_TOKEN::'
+
+          Environment:
+            - Name: ENV
+              Value: !Ref ENV
+            - Name: DBHOST
+              Value: !Ref DBHOST
+            - Name: DBNAME
+              Value: !Ref DBNAME
+            - Name: TENANT
+              Value: !Ref TENANT
+
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-create-group: 'True'
+              awslogs-group: /ecs/grafana-service
+              awslogs-region: !Sub '${AWS::Region}'
+              awslogs-stream-prefix: grafana
+
+        - Name: nginx
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/
+          Memory: 256
+          MemoryReservation: 64
+          Cpu: 50
+          Essential: true
+          StopTimeout: !Ref MaxRequestDuration
+          Environment:
+            - Name: TIMEOUT
+              Value: !Sub ${MaxRequestDuration}s
+            - Name: PROXY_URL
+              Value: http://app:3000
+            - Name: MAX_BODY_SIZE
+              Value: !Sub ${MaxFileSize}M
+          PortMappings:
+          - ContainerPort: 80
+            Protocol: tcp
+          Links:
+          - app
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/grafana-service
+              awslogs-region: !Sub '${AWS::Region}'
+              awslogs-stream-prefix: grafana-ng
+
+  GrafanaService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      TaskDefinition: !Ref GrafanaTaskDefinition
+      Cluster: !ImportValue 
+        'Fn::Sub': '${ECSStackName}-'
+      CapacityProviderStrategy:
+        - Base: 1
+          CapacityProvider: !ImportValue 
+            'Fn::Sub': '${ECSStackName}-'
+          Weight: 1
+      DesiredCount: 1
+      HealthCheckGracePeriodSeconds: 240
+      PlacementConstraints:
+        - Type: distinctInstance
+      PlacementStrategies:
+        - Type: binpack
+          Field: memory
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 0
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      DeploymentController:
+        Type: ECS
+      LoadBalancers:
+        - ContainerName: nginx
+          ContainerPort: 80
+          TargetGroupArn: !Ref TargetGroup
+
+  TargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      VpcId: !ImportValue 
+        'Fn::Sub': '${}-VPC'
+      Port: 80
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /api/health
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: !If 
+            - IfDevChannel
+            - '0'
+            - !Ref MaxRequestDuration
+  ListenerRule:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      ListenerArn: !ImportValue 
+        'Fn::Sub': '${ECSStackName}-'
+      Priority: !FindInMap 
+        - ChannelMap
+        - !Ref Channel
+        - ListenerPriority
+      Conditions:
+        - Field: host-header
+          Values:
+            - !Ref HostName
+        - !If 
+          - IfRestrictAccess
+          - Field: source-ip
+            SourceIpConfig:
+              Values: !Ref RestrictAccess
+          - !Ref 'AWS::NoValue'
+      Actions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
